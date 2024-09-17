@@ -1,0 +1,13 @@
+*.nii.gz
+*.nii
+temp_tests/
+Segmentation database/
+nnUNet_results/
+nnUNet_raw/
+nnUNet_preprocessed/
+nii_ds_1/
+.ipynb_checkpoints/
+*.zip
+*.tar
+*.tar.gz 
+.ipynb_checkpoints

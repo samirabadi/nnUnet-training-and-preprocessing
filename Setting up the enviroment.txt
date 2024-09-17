@@ -1,0 +1,15 @@
+#powershell commands 
+
+
+
+set nnUNet_results=./nnUNet_results
+set nnUNet_preprocessed=./nnUnet_preprocessed
+set nnUNet_raw=./nnUNet_raw
+
+
+## datset prep 
+
+nnUNetv2_plan_and_preprocess -d 125 --verify_dataset_integrity
+
+## training 
+
