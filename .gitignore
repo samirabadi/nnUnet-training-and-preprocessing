@@ -6,8 +6,13 @@ nnUNet_results/
 nnUNet_raw/
 nnUNet_preprocessed/
 nii_ds_1/
+nii_*
 .ipynb_checkpoints/
 *.zip
 *.tar
 *.tar.gz 
 .ipynb_checkpoints
+temp_unzip
+temp_*
+*.nii.gz
+*.nii

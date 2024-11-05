@@ -1,0 +1,1889 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "9987388c-a8d9-4704-b963-8339129cf801",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import JupyterNotebooksLib as slicernb\n",
+    "import slicer\n",
+    "import os \n",
+    "from DICOMLib import DICOMUtils\n",
+    "import numpy as np\n",
+    "import zipfile\n",
+    "\n",
+    "from glob import glob\n",
+    "from natsort import natsorted\n",
+    "from tqdm import tqdm\n",
+    "\n",
+    "# Set image viewer size to 50% screen size\n",
+    "# slicernb.AppWindow.setWindowSize(scale=0.5)\n",
+    "# slicernb.AppWindow.setContents(\"viewers\")\n",
+    "\n",
+    "# Clear scene\n",
+    "slicer.mrmlScene.Clear(False)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b40206a5-80d4-4964-97eb-5ed2bfa81407",
+   "metadata": {},
+   "source": [
+    "# Unzip and organize files "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "6c786768-bcab-4ae5-af6b-2cc0087449a8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#input folder \n",
+    "input_folder = \"C:\\\\Users\\\\Sepehr\\\\3dsegmentationProjects\\\\nn-unet-organize-dataset-for-training\\\\Segmentation database\"\n",
+    "intermediary_folder = \"./temp_unzip\"\n",
+    "\n",
+    "if  not os.path.exists(intermediary_folder):\n",
+    "    os.mkdir(intermediary_folder)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "c706e0ab-c6a7-4c20-a9cc-ce71b6f99c31",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# for zip_file in os.listdir(input_folder):\n",
+    "#     if \"(\" in zip_file or \")\" in zip_file:\n",
+    "#         continue;\n",
+    "#     zip_path = f\"{input_folder}/{zip_file}\"\n",
+    "#     Case_id = zip_file.split(\"_\")[0]\n",
+    "\n",
+    "#     if \"_segmented_structures\" in zip_file: \n",
+    "#         out_path = f\"{intermediary_folder}/{Case_id}_segmentations\"\n",
+    "#     else:\n",
+    "#         out_path = f\"{intermediary_folder}/{Case_id}_volumes\"\n",
+    "        \n",
+    "#     with zipfile.ZipFile(zip_path, 'r') as zip_ref:\n",
+    "#                     zip_ref.extractall(out_path)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "fbf8913f-d980-429b-8a23-829200bcc547",
+   "metadata": {},
+   "source": [
+    "# organize file names throw out unuasable cases "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "7d4fa809-bf6c-4bf8-ac05-3b56198ddd2e",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "cannot find matching segmentation case will be skipped\n",
+      "cannot find matching segmentation case will be skipped\n"
+     ]
+    }
+   ],
+   "source": [
+    "input_cases = [] \n",
+    "\n",
+    "\n",
+    "volumes_paths = list(natsorted(glob(os.path.join(intermediary_folder,  \"*\"+ f\"_volumes\"))))\n",
+    "\n",
+    "for vol in volumes_paths: \n",
+    "\n",
+    "    seg_path = vol.replace (\"_volumes\",\"_segmentations\")\n",
+    "\n",
+    "    if (os.path.exists(seg_path)):\n",
+    "        input_cases.append ({\"vol\":vol,\"seg\":seg_path})\n",
+    "    else:\n",
+    "        print (\"cannot find matching segmentation case will be skipped\")\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "9f67a9d0-ddf1-4041-b0f4-b487b01c6612",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'304846'"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "input_cases[0][\"vol\"].split(\"\\\\\")[-1].split(\"_\")[0]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5acf0bcb-d3a1-4de7-8f10-4b3d2b1f81c5",
+   "metadata": {},
+   "source": [
+    "# using slicer to convert to nii\n",
+    "\n",
+    "### will need to alter segmentation nodes to reflect changes in classes you are trying to segment"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "09ece8a6-f3bd-4d53-8a78-921dc34cfa95",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "these directories already exist\n"
+     ]
+    }
+   ],
+   "source": [
+    "nii_path = \"./nii_ds_2\"\n",
+    "nii_path_volumes = f\"{nii_path}/Volumes\"\n",
+    "nii_path_segmentations = f\"{nii_path}/Masks\"\n",
+    "\n",
+    "try:\n",
+    "    os.mkdir(nii_path)\n",
+    "    os.mkdir(nii_path_volumes)\n",
+    "    os.mkdir(nii_path_segmentations)\n",
+    "except:\n",
+    "    print (\"these directories already exist\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "f859f038-f7c1-44e9-90f9-59d196e6f73c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_model_class_from_file (file): \n",
+    "    if \"tooth\" in file: \n",
+    "        #print (file.split(\"tooth_\")[1].split(\"_\")[0])\n",
+    "\n",
+    "        if (\".stl\" in file):\n",
+    "            return \"tooth_\" + file.split(\"tooth_\")[1].split(\"_\")[0]\n",
+    "        else:\n",
+    "            return \"tooth_\" + file.split(\"tooth-\")[1].split(\"-\")[0].split(\"_\")[0]\n",
+    "\n",
+    "    else: \n",
+    "        # CaseId = file.split(\"_\") [-1].split(\".)\n",
+    "        # #print (file.split(f\"{CaseId}_\")[-1].split(\"_\")[0])\n",
+    "        if (\".stl\" in file):\n",
+    "            return file.split(\"_\") [-1].split(\".\")[0]\n",
+    "        else:\n",
+    "            return file.split(\"-\") [-1].split(\"_\")[0]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "92002c8d-22ff-4871-951d-33edd9f05852",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'tooth_13'"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "get_model_class_from_file (\"576547P524654_576547_2018874805-cbct-tooth-13_decimated\")\n",
+    "#\"304846_canal.stl\".split(\"_\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "aa4abd38-4f01-4a64-ae22-2e04fc2e12c7",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'11'"
+      ]
+     },
+     "execution_count": 9,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "\"tooth_11\".strip(\"tooth_\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "e1da7c97-52ff-4557-b1fc-fe2d3cdf6602",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "lable_map = {\n",
+    "    \"background\":0,\n",
+    "    \"tooth_31\":1,\n",
+    "    \"tooth_32\":2,\n",
+    "    \"tooth_33\":3,\n",
+    "    \"tooth_34\":4,\n",
+    "    \"tooth_35\":5,\n",
+    "    \"tooth_36\":6,\n",
+    "    \"tooth_37\":7,\n",
+    "    \"tooth_38\":8,\n",
+    "    \"tooth_41\":9,\n",
+    "    \"tooth_42\":10,\n",
+    "    \"tooth_43\":11,\n",
+    "    \"tooth_44\":12,\n",
+    "    \"tooth_45\":13,\n",
+    "    \"tooth_46\":14,\n",
+    "    \"tooth_47\":15,\n",
+    "    \"tooth_48\":16,\n",
+    "\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "2b7874e6-4db8-4e46-87e9-fac21d7237c2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def convert_to_nnunet_lable_tooth (segmentationNodes,referenceVolumeNode):\n",
+    "\n",
+    "    all_segment_np = [] \n",
+    "    for lable, node in segmentationNodes.items():\n",
+    "        name = node.GetName()\n",
+    "    \n",
+    "        segmentationLblmap  = slicer.mrmlScene.AddNewNodeByClass(\"vtkMRMLLabelMapVolumeNode\")\n",
+    "        segmentationLblmap.SetName(name+\"_lablemap\")\n",
+    "        slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(node, segmentationLblmap, referenceVolumeNode)\n",
+    "        mask = slicer.util.arrayFromVolume(segmentationLblmap)\n",
+    "        mask[mask > 0] = lable_map[lable]\n",
+    "    \n",
+    "        all_segment_np.append(mask.copy())\n",
+    "\n",
+    "\n",
+    "\n",
+    "    final_out = all_segment_np[0] \n",
+    "    for i in range (1,len(all_segment_np)):\n",
+    "        indices  = np.where (final_out <1)\n",
+    "        final_out [indices] = all_segment_np[i][indices]\n",
+    "\n",
+    "    segmentationLblmap  = slicer.mrmlScene.AddNewNodeByClass(\"vtkMRMLLabelMapVolumeNode\")\n",
+    "    slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(next(iter(segmentationNodes.values())), segmentationLblmap, referenceVolumeNode)\n",
+    "    \n",
+    "    slicer.util.updateVolumeFromArray(segmentationLblmap, final_out)\n",
+    "\n",
+    "    return segmentationLblmap\n",
+    "\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "50d9ca4e-306b-4287-bf3b-d968cfc4624e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def convert_to_nnunet_lable_macro_structure (macroNode,referenceVolumeNode):\n",
+    "\n",
+    "\n",
+    "    name = macroNode.GetName()\n",
+    "    segmentationLblmap  = slicer.mrmlScene.AddNewNodeByClass(\"vtkMRMLLabelMapVolumeNode\")\n",
+    "    segmentationLblmap.SetName(name+\"_lablemap\")\n",
+    "    slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(macroNode, segmentationLblmap, referenceVolumeNode)\n",
+    "    mask = slicer.util.arrayFromVolume(segmentationLblmap)\n",
+    "    mask[mask > 0] = 1\n",
+    "\n",
+    "    # labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')\n",
+    "    #slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(macroNode, segmentationLblmap, referenceVolumeNode)\n",
+    "    slicer.util.updateVolumeFromArray(segmentationLblmap, mask)\n",
+    "    \n",
+    "\n",
+    "    return segmentationLblmap\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "id": "c9c8fd93-f235-4aac-b699-dcbe2d1ae5f3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "maxillary_teeth_lables = [\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\",\"27\",\"28\"]\n",
+    "mandibular_teeth_lables = [\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"41\",\"42\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\"]\n",
+    "\n",
+    "def convert_single_case_to_nii (dicom_series_path,segmentation_path):\n",
+    "\n",
+    "    '''\n",
+    "    simply loading dicoms into a fresh scene \n",
+    "    '''\n",
+    "    \n",
+    "    \n",
+    "    # # Clear scene\n",
+    "    slicer.mrmlScene.Clear(False)\n",
+    "\n",
+    "    print(dicom_series_path)\n",
+    "    print(segmentation_path)\n",
+    "    \n",
+    "    ##load dicom \n",
+    "    loadedNodeIDs = []\n",
+    "    with DICOMUtils.TemporaryDICOMDatabase() as db:\n",
+    "        DICOMUtils.importDicom(os.path.abspath(dicom_series_path), db)\n",
+    "        patientUIDs = db.patients()\n",
+    "    \n",
+    "        print (patientUIDs)\n",
+    "        for patientUID in patientUIDs:\n",
+    "            loadedNodeIDs.extend(DICOMUtils.loadPatientByUID(patientUID))\n",
+    "\n",
+    "\n",
+    "\n",
+    "    '''\n",
+    "    loading the segmentations into appropriate substructuresz \n",
+    "    \n",
+    "    '''\n",
+    "\n",
+    "    manadibularTeethNode = slicer.mrmlScene.AddNewNodeByClass(\"vtkMRMLSegmentationNode\")\n",
+    "    manadibularTeethNode.CreateDefaultDisplayNodes()\n",
+    "    manadibularTeethNode.SetName (\"manadibularTeethNode\")\n",
+    "    \n",
+    "    \n",
+    "    ## creating segmentation nodes\n",
+    "    segmentationNodes = {} \n",
+    "\n",
+    "\n",
+    "    ## importing stls \n",
+    "    nodes = []\n",
+    "    node_names = []\n",
+    "    for seg in os.listdir(segmentation_path):\n",
+    "        if ((\".stl\" in seg or \".obj\" in seg) and \"pulp\" not in seg ):\n",
+    "            mesh_path = f\"{segmentation_path}/{seg}\"\n",
+    "            class_name = get_model_class_from_file(seg)\n",
+    "\n",
+    "            if class_name.strip(\"tooth_\") in mandibular_teeth_lables:\n",
+    "                slicer.modules.segmentations.logic().ImportModelToSegmentationNode(slicer.util.loadModel(mesh_path), manadibularTeethNode)\n",
+    "\n",
+    "            if class_name in lable_map:\n",
+    "\n",
+    "                segmentationNode = slicer.mrmlScene.AddNewNodeByClass(\"vtkMRMLSegmentationNode\")\n",
+    "                segmentationNode.CreateDefaultDisplayNodes()\n",
+    "                segmentationNodes [class_name] = segmentationNode\n",
+    "                \n",
+    "                slicer.modules.segmentations.logic().ImportModelToSegmentationNode(slicer.util.loadModel(mesh_path), segmentationNode)\n",
+    "\n",
+    "    if (len(segmentationNodes) <1):\n",
+    "        print (\"too few of desired class in this case. this case will be skipped\")\n",
+    "        return;\n",
+    "\n",
+    "    referenceVolumeNode = slicer.mrmlScene.GetNodeByID(\"vtkMRMLScalarVolumeNode1\")\n",
+    "\n",
+    "    segmentation_lable_map = convert_to_nnunet_lable_tooth(segmentationNodes,referenceVolumeNode)\n",
+    "    input_volume_map = convert_to_nnunet_lable_macro_structure(manadibularTeethNode,referenceVolumeNode)\n",
+    "\n",
+    "    caseID = dicom_series_path.split(\"\\\\\")[-1].split(\"_\")[0]\n",
+    "    volume_save_path = f\"{nii_path_volumes}/{caseID}_input.nii.gz\"\n",
+    "    seg_save_path =  f\"{nii_path_segmentations}/{caseID}_seg.nii.gz\"\n",
+    "\n",
+    "    slicer.util.exportNode(input_volume_map, volume_save_path , {\"useCompression\": 0})\n",
+    "    slicer.util.exportNode(segmentation_lable_map, seg_save_path , {\"useCompression\": 0})\n",
+    "\n",
+    "    print (\"one case sucessfully converted\")\n",
+    "     \n",
+    "\n",
+    "\n",
+    "        "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "7e4afd5c-a0cf-41b2-98e8-f497f8a7e4ef",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def batch_nii_convert (in_case_files):\n",
+    "\n",
+    "    for case in tqdm(in_case_files [164:]):\n",
+    "        try:\n",
+    "            convert_single_case_to_nii (case[\"vol\"],case[\"seg\"])\n",
+    "        except:\n",
+    "            print (f\"somthing is wrong with case {case} probably a missing segmentation\")\n",
+    "    print (\"done converting all cases to nii\")\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "id": "78215f33-47f9-4dab-aa75-45268bbb3771",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  0%|          | 0/74 [00:00<?, ?it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\575955_volumes\n",
+      "./temp_unzip\\575955_segmentations\n",
+      "('1',)\n",
+      "too few of desired class in this case. this case will be skipped\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  1%|1         | 1/74 [00:03<04:42,  3.87s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\575970_volumes\n",
+      "./temp_unzip\\575970_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  3%|2         | 2/74 [01:14<51:53, 43.25s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\575984_volumes\n",
+      "./temp_unzip\\575984_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  4%|4         | 3/74 [01:26<34:12, 28.91s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\575999_volumes\n",
+      "./temp_unzip\\575999_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  5%|5         | 4/74 [01:41<27:06, 23.23s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576031_volumes\n",
+      "./temp_unzip\\576031_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  7%|6         | 5/74 [01:49<20:46, 18.06s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576038_volumes\n",
+      "./temp_unzip\\576038_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  8%|8         | 6/74 [02:35<30:59, 27.35s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576098_volumes\n",
+      "./temp_unzip\\576098_segmentations\n",
+      "('1',)\n",
+      "too few of desired class in this case. this case will be skipped\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  9%|9         | 7/74 [02:39<22:01, 19.73s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576114_volumes\n",
+      "./temp_unzip\\576114_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 11%|#         | 8/74 [02:47<17:45, 16.14s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576117_volumes\n",
+      "./temp_unzip\\576117_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 12%|#2        | 9/74 [02:55<14:36, 13.49s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576125_volumes\n",
+      "./temp_unzip\\576125_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 14%|#3        | 10/74 [03:02<12:15, 11.49s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576210_volumes\n",
+      "./temp_unzip\\576210_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 15%|#4        | 11/74 [03:10<11:01, 10.50s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576214_volumes\n",
+      "./temp_unzip\\576214_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 16%|#6        | 12/74 [03:14<08:44,  8.46s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576251_volumes\n",
+      "./temp_unzip\\576251_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 18%|#7        | 13/74 [03:28<10:19, 10.16s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576288_volumes\n",
+      "./temp_unzip\\576288_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 19%|#8        | 14/74 [03:37<09:42,  9.70s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576316_volumes\n",
+      "./temp_unzip\\576316_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 20%|##        | 15/74 [03:42<08:08,  8.28s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576342_volumes\n",
+      "./temp_unzip\\576342_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 22%|##1       | 16/74 [03:46<06:46,  7.01s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576356_volumes\n",
+      "./temp_unzip\\576356_segmentations\n",
+      "('1',)\n",
+      "too few of desired class in this case. this case will be skipped\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 23%|##2       | 17/74 [03:49<05:39,  5.96s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576376_volumes\n",
+      "./temp_unzip\\576376_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 24%|##4       | 18/74 [03:59<06:36,  7.08s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576383_volumes\n",
+      "./temp_unzip\\576383_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 26%|##5       | 19/74 [04:06<06:35,  7.19s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576432_volumes\n",
+      "./temp_unzip\\576432_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 27%|##7       | 20/74 [04:13<06:24,  7.12s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576436_volumes\n",
+      "./temp_unzip\\576436_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 28%|##8       | 21/74 [04:27<08:02,  9.11s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576491_volumes\n",
+      "./temp_unzip\\576491_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 30%|##9       | 22/74 [06:15<33:32, 38.70s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576504_volumes\n",
+      "./temp_unzip\\576504_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 31%|###1      | 23/74 [06:30<26:50, 31.58s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576515_volumes\n",
+      "./temp_unzip\\576515_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 32%|###2      | 24/74 [06:34<19:32, 23.46s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576527_volumes\n",
+      "./temp_unzip\\576527_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 34%|###3      | 25/74 [06:41<14:56, 18.30s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576543_volumes\n",
+      "./temp_unzip\\576543_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 35%|###5      | 26/74 [06:46<11:33, 14.45s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576547_volumes\n",
+      "./temp_unzip\\576547_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 36%|###6      | 27/74 [07:13<14:08, 18.05s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576597_volumes\n",
+      "./temp_unzip\\576597_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 38%|###7      | 28/74 [07:21<11:41, 15.25s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576705_volumes\n",
+      "./temp_unzip\\576705_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 39%|###9      | 29/74 [07:31<10:10, 13.56s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576706_volumes\n",
+      "./temp_unzip\\576706_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 41%|####      | 30/74 [07:56<12:34, 17.14s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576708_volumes\n",
+      "./temp_unzip\\576708_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 42%|####1     | 31/74 [09:17<25:51, 36.08s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576710_volumes\n",
+      "./temp_unzip\\576710_segmentations\n",
+      "('1',)\n",
+      "somthing is wrong with case {'vol': './temp_unzip\\\\576710_volumes', 'seg': './temp_unzip\\\\576710_segmentations'} probably a missing segmentation\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 43%|####3     | 32/74 [09:50<24:46, 35.38s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576715_volumes\n",
+      "./temp_unzip\\576715_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 45%|####4     | 33/74 [10:49<28:58, 42.39s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576728_volumes\n",
+      "./temp_unzip\\576728_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 46%|####5     | 34/74 [13:19<49:42, 74.55s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576751_volumes\n",
+      "./temp_unzip\\576751_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 47%|####7     | 35/74 [14:06<43:11, 66.46s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576794_volumes\n",
+      "./temp_unzip\\576794_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 49%|####8     | 36/74 [14:12<30:34, 48.26s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576854_volumes\n",
+      "./temp_unzip\\576854_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 50%|#####     | 37/74 [14:31<24:15, 39.33s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576856_volumes\n",
+      "./temp_unzip\\576856_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 51%|#####1    | 38/74 [14:46<19:20, 32.23s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576887_volumes\n",
+      "./temp_unzip\\576887_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 53%|#####2    | 39/74 [15:53<24:48, 42.52s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576945_volumes\n",
+      "./temp_unzip\\576945_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 54%|#####4    | 40/74 [16:10<19:51, 35.04s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\576998_volumes\n",
+      "./temp_unzip\\576998_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 55%|#####5    | 41/74 [16:23<15:35, 28.35s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577011_volumes\n",
+      "./temp_unzip\\577011_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 57%|#####6    | 42/74 [16:31<11:46, 22.08s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577039_volumes\n",
+      "./temp_unzip\\577039_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 58%|#####8    | 43/74 [17:06<13:29, 26.10s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577053_volumes\n",
+      "./temp_unzip\\577053_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 59%|#####9    | 44/74 [17:11<09:51, 19.73s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577063_volumes\n",
+      "./temp_unzip\\577063_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 61%|######    | 45/74 [18:17<16:15, 33.64s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577179_volumes\n",
+      "./temp_unzip\\577179_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 62%|######2   | 46/74 [18:22<11:40, 25.01s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577186_volumes\n",
+      "./temp_unzip\\577186_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 64%|######3   | 47/74 [18:29<08:53, 19.77s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577210_volumes\n",
+      "./temp_unzip\\577210_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 65%|######4   | 48/74 [18:50<08:37, 19.91s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577436_volumes\n",
+      "./temp_unzip\\577436_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 66%|######6   | 49/74 [19:01<07:10, 17.23s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577466_volumes\n",
+      "./temp_unzip\\577466_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 68%|######7   | 50/74 [19:09<05:46, 14.43s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577564_volumes\n",
+      "./temp_unzip\\577564_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 69%|######8   | 51/74 [19:15<04:38, 12.09s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577589_volumes\n",
+      "./temp_unzip\\577589_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 70%|#######   | 52/74 [19:21<03:43, 10.15s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577590_volumes\n",
+      "./temp_unzip\\577590_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 72%|#######1  | 53/74 [19:37<04:10, 11.93s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577623_volumes\n",
+      "./temp_unzip\\577623_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 73%|#######2  | 54/74 [19:44<03:27, 10.39s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577628_volumes\n",
+      "./temp_unzip\\577628_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 74%|#######4  | 55/74 [19:51<03:02,  9.59s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577734_volumes\n",
+      "./temp_unzip\\577734_segmentations\n",
+      "('1',)\n",
+      "somthing is wrong with case {'vol': './temp_unzip\\\\577734_volumes', 'seg': './temp_unzip\\\\577734_segmentations'} probably a missing segmentation\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 76%|#######5  | 56/74 [19:55<02:20,  7.80s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577745_volumes\n",
+      "./temp_unzip\\577745_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 77%|#######7  | 57/74 [20:11<02:54, 10.29s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\577806_volumes\n",
+      "./temp_unzip\\577806_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 78%|#######8  | 58/74 [20:18<02:29,  9.34s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578001_volumes\n",
+      "./temp_unzip\\578001_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 80%|#######9  | 59/74 [20:37<03:03, 12.24s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578094_volumes\n",
+      "./temp_unzip\\578094_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 81%|########1 | 60/74 [20:52<03:01, 12.97s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578111_volumes\n",
+      "./temp_unzip\\578111_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 82%|########2 | 61/74 [20:59<02:24, 11.13s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578239_volumes\n",
+      "./temp_unzip\\578239_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 84%|########3 | 62/74 [21:07<02:04, 10.35s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578343_volumes\n",
+      "./temp_unzip\\578343_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 85%|########5 | 63/74 [21:18<01:55, 10.48s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578396_volumes\n",
+      "./temp_unzip\\578396_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 86%|########6 | 64/74 [21:52<02:54, 17.41s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578398_volumes\n",
+      "./temp_unzip\\578398_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 88%|########7 | 65/74 [22:16<02:56, 19.63s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578401_volumes\n",
+      "./temp_unzip\\578401_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 89%|########9 | 66/74 [23:50<05:35, 41.89s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578518_volumes\n",
+      "./temp_unzip\\578518_segmentations\n",
+      "('1',)\n",
+      "somthing is wrong with case {'vol': './temp_unzip\\\\578518_volumes', 'seg': './temp_unzip\\\\578518_segmentations'} probably a missing segmentation\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 91%|######### | 67/74 [24:01<03:47, 32.46s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578567_volumes\n",
+      "./temp_unzip\\578567_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 92%|#########1| 68/74 [24:07<02:28, 24.73s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578652_volumes\n",
+      "./temp_unzip\\578652_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 93%|#########3| 69/74 [25:18<03:13, 38.60s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578675_volumes\n",
+      "./temp_unzip\\578675_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 95%|#########4| 70/74 [25:28<02:00, 30.04s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578888_volumes\n",
+      "./temp_unzip\\578888_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 96%|#########5| 71/74 [25:58<01:29, 29.79s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\578910_volumes\n",
+      "./temp_unzip\\578910_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 97%|#########7| 72/74 [26:26<00:58, 29.46s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\579057_volumes\n",
+      "./temp_unzip\\579057_segmentations\n",
+      "('1',)\n",
+      "one case sucessfully converted\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 99%|#########8| 73/74 [26:55<00:29, 29.22s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "./temp_unzip\\579169_volumes\n",
+      "./temp_unzip\\579169_segmentations\n",
+      "('1',)\n",
+      "somthing is wrong with case {'vol': './temp_unzip\\\\579169_volumes', 'seg': './temp_unzip\\\\579169_segmentations'} probably a missing segmentation\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "100%|##########| 74/74 [27:00<00:00, 21.90s/it]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "done converting all cases to nii\n"
+     ]
+    }
+   ],
+   "source": [
+    "batch_nii_convert (input_cases)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c2bd95b1-d062-4235-992e-4048effdb08d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# test_seg = \"C:\\\\Users\\\\Sepehr\\\\3dsegmentationProjects\\\\nn-unet-organize-dataset-for-training\\\\304846_246033_segmented_structures\"\n",
+    "# test_vol = \"C:\\\\Users\\\\Sepehr\\\\3dsegmentationProjects\\\\nn-unet-organize-dataset-for-training\\\\304846_Ken_Lin_Lin_Ken____20200831_080509147\"\n",
+    "\n",
+    "# test_seg2 = \"C:\\\\Users\\\\Sepehr\\\\3dsegmentationProjects\\\\nn-unet-organize-dataset-for-training\\\\temp_unzip\\\\576547_segmentations\"\n",
+    "# test_vol2 = \"C:\\\\Users\\\\Sepehr\\\\3dsegmentationProjects\\\\nn-unet-organize-dataset-for-training\\\\temp_unzip\\\\576547_volumes\"\n",
+    "\n",
+    "# # # convert_single_case_to_nii (input_cases[0][\"vol\"],input_cases[0][\"seg\"])\n",
+    "# convert_single_case_to_nii (test_vol2,test_seg2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a57ecaf2-80a2-46b7-98ed-1b1936084477",
+   "metadata": {},
+   "source": [
+    "# building nnunet_dataset from nii"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "id": "5d3753e3-750a-4644-b07a-c3d035c7b32a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#making dataset Folder \n",
+    "\n",
+    "dataset_id = 129\n",
+    "dataset_name = \"mandibular_teeth_split\" \n",
+    "Dataset_folder_name = f\"Dataset{dataset_id}_{dataset_name}\"\n",
+    "\n",
+    "if (not os.path.exists(f\"./nnUNet_raw/{Dataset_folder_name}\")):\n",
+    "    os.mkdir(f\"./nnUNet_raw/{Dataset_folder_name}\")\n",
+    "\n",
+    "train_input_dir = f\"./nnUNet_raw/{Dataset_folder_name}/imagesTr\"\n",
+    "train_lable_dir = f\"./nnUNet_raw/{Dataset_folder_name}/labelsTr\"\n",
+    "\n",
+    "if not os.path.exists(train_input_dir):\n",
+    "    os.mkdir(train_input_dir)\n",
+    "if not os.path.exists(train_lable_dir):\n",
+    "    os.mkdir(train_lable_dir)\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "id": "a3865e6d-e787-4654-86f9-f81bf8253133",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import shutil\n",
+    "volume_list = os.listdir(nii_path_volumes)\n",
+    "seg_list = os.listdir(nii_path_segmentations)\n",
+    "# print (volume_list)\n",
+    "\n",
+    "for volume in volume_list:\n",
+    "    volume_old_path = f\"{nii_path_volumes}/{volume}\"\n",
+    "    volume_nnunet_name = volume.replace (\"_input.nii.gz\",\"_0000.nii.gz\")\n",
+    "    volume_new_path = f\"{train_input_dir}/{volume_nnunet_name}\"\n",
+    "\n",
+    "    #print (volume_nnunet_name)\n",
+    "    shutil.move(volume_old_path, volume_new_path)\n",
+    "\n",
+    "\n",
+    "for segmentation in seg_list:\n",
+    "    segmentation_old_path = f\"{nii_path_segmentations}/{segmentation}\"\n",
+    "    segmentation_nnunet_name = segmentation.replace (\"_seg.nii.gz\",\".nii.gz\")\n",
+    "    segmentation_new_path = f\"{train_lable_dir}/{segmentation_nnunet_name}\"\n",
+    "\n",
+    "    #print (segmentation_nnunet_name)\n",
+    "    shutil.move(segmentation_old_path, segmentation_new_path)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "id": "c9adf213-d7fe-4681-a374-8a67acab6bc7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "## creating Dataset Json \n",
+    "import json \n",
+    "\n",
+    "dataset_metadata = {\n",
+    " \"channel_names\": {  # formerly modalities\n",
+    "   \"0\": \"rescale_to_0_1\", \n",
+    " }, \n",
+    " \"labels\": {\n",
+    "    \"background\":0,\n",
+    "    \"tooth_31\":1,\n",
+    "    \"tooth_32\":2,\n",
+    "    \"tooth_33\":3,\n",
+    "    \"tooth_34\":4,\n",
+    "    \"tooth_35\":5,\n",
+    "    \"tooth_36\":6,\n",
+    "    \"tooth_37\":7,\n",
+    "    \"tooth_38\":8,\n",
+    "    \"tooth_41\":9,\n",
+    "    \"tooth_42\":10,\n",
+    "    \"tooth_43\":11,\n",
+    "    \"tooth_44\":12,\n",
+    "    \"tooth_45\":13,\n",
+    "    \"tooth_46\":14,\n",
+    "    \"tooth_47\":15,\n",
+    "    \"tooth_48\":16,\n",
+    "\n",
+    "}, \n",
+    " \"numTraining\": len(volume_list), \n",
+    " \"file_ending\": \".nii.gz\",\n",
+    " \"overwrite_image_reader_writer\": \"SimpleITKIO\"  # optional! If not provided nnU-Net will automatically determine the ReaderWriter\n",
+    " \n",
+    "}\n",
+    "\n",
+    "json_data = json.dumps(dataset_metadata)\n",
+    "\n",
+    "with open(f\"./nnUNet_raw/{Dataset_folder_name}/dataset.json\", \"w\") as outfile:\n",
+    "    outfile.write(json_data)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "4266cc80-479a-4baa-8252-1e9d00ef5d2a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# for file in os.listdir(train_input_dir):\n",
+    "\n",
+    "#     volume_nnunet_name = file.replace (\"_input.nii.gz\",\"_0000.nii.gz\")\n",
+    "#     os.rename (f\"{train_input_dir}/{file}\",f\"{train_input_dir}/{volume_nnunet_name}\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8f162ece-ac3c-4abf-b814-6c2698c804ba",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Slicer 5.6",
+   "language": "python",
+   "name": "slicer-5.6"
+  },
+  "language_info": {
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "version": "3.9.10"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

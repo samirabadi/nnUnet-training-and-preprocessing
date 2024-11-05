@@ -7,9 +7,19 @@ set nnUNet_preprocessed=./nnUnet_preprocessed
 set nnUNet_raw=./nnUNet_raw
 
 
+
+## preprocessing 
+
+nnUNetv2_extract_fingerprint -d 125
+
+nnUNetv2_plan_experiment -d 125 
+
+nnUNetv2_preprocess -d 125 -c 3d_fullres -np 1 
+
 ## datset prep 
 
 nnUNetv2_plan_and_preprocess -d 125 --verify_dataset_integrity
 
 ## training 
 
+nnUNetv2_train DATASET_NAME_OR_ID 3d_fullres FOLD [--npz]
